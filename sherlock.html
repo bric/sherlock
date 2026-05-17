@@ -55,6 +55,12 @@ button:active{transform:translateY(0)}
   border-color:#27ae60;background:#091a0e;
   box-shadow:0 0 14px rgba(39,174,96,.3);
 }
+.cell.cell-given{
+  border-color:#ffd700;background:#1a1400;
+  box-shadow:0 0 14px rgba(255,215,0,.25);
+}
+.cell.cell-given .cell-big-icon{cursor:default}
+.cell.cell-given .cell-big-icon::after{display:none}
 .cell.cell-wrong{border-color:#c0392b;background:#1a0909}
 
 /* Large icon when cell is fully confirmed */
@@ -398,7 +404,7 @@ function propagate(poss,clues,n){
 
 function isSolvedPoss(poss){return poss.every(r=>r.every(s=>s.size===1));}
 
-function countSols(clues,n,limit=2){
+function countSols(clues,n,limit=2,basePoss=null){
   function bt(poss,cnt){
     if(cnt>=limit) return cnt;
     if(!propagate(poss,clues,n)) return cnt;
@@ -413,7 +419,16 @@ function countSols(clues,n,limit=2){
     }
     return cnt;
   }
-  return bt(initPoss(n),0);
+  return bt(basePoss?clonePoss(basePoss):initPoss(n),0);
+}
+
+function makeBasePoss(preFilled,n){
+  const poss=initPoss(n);
+  for(const {r,c,item} of preFilled){
+    poss[r][item]=new Set([c]);
+    for(let i=0;i<n;i++) if(i!==item) poss[r][i].delete(c);
+  }
+  return poss;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -421,6 +436,13 @@ function countSols(clues,n,limit=2){
    ═══════════════════════════════════════════════════════════ */
 function buildPuzzle(n){
   const {solution,pos}=makeSolution(n);
+
+  // Wähle vorgegebene Zellen (1 für 4×4, 2 für 5×5+)
+  const numGiven=Math.max(1,n-3);
+  const cellList=shuffle([...Array(n*n).keys()].map(k=>({r:Math.floor(k/n),c:k%n})));
+  const preFilled=cellList.slice(0,numGiven).map(({r,c})=>({r,c,item:solution[r][c]}));
+  const basePoss=makeBasePoss(preFilled,n);
+
   const raw=allCluesFrom(solution,pos,n);
   const posTypes=[CT.ADJACENT,CT.LEFT_OF,CT.BETWEEN,CT.ONE_APART];
   const vertPool=shuffle(raw.filter(c=>c.type===CT.SAME_COL));
@@ -438,12 +460,23 @@ function buildPuzzle(n){
     if(vi<vertPool.length)  ordered.push(vertPool[vi++]);
   }
 
-  const selected=[];
-  for(const clue of ordered){
-    selected.push(clue);
-    if(countSols(selected,n)===1) break;
+  let selected=[];
+  if(countSols(selected,n,2,basePoss)!==1){
+    for(const clue of ordered){
+      selected.push(clue);
+      if(countSols(selected,n,2,basePoss)===1) break;
+    }
   }
-  return {solution,pos,clues:selected};
+
+  // Minimieren: redundante Hinweise entfernen
+  let i=0;
+  while(i<selected.length){
+    const without=selected.filter((_,j)=>j!==i);
+    if(countSols(without,n,2,basePoss)===1) selected=without;
+    else i++;
+  }
+
+  return {solution,pos,clues:selected,preFilled};
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -458,6 +491,7 @@ function buildPuzzle(n){
 let N=5, solution=[], gameClues=[], manual=[], mark=[], clueUsed=[], gameWon=false;
 let dragSrcIdx=-1;
 let history=[];
+let preFilled=[], preFilledSet=new Set();
 
 function saveHistory(){
   history.push(manual.map(row=>row.map(cell=>[...cell])));
@@ -473,6 +507,8 @@ function undo(){
 
 function initMark(){
   manual=Array.from({length:N},()=>Array.from({length:N},()=>new Array(N).fill(0)));
+  for(const {r,c,item} of preFilled)
+    for(let i=0;i<N;i++) manual[r][c][i]=(i===item?1:-1);
   clueUsed=new Array(gameClues.length).fill(false);
   history=[];
   recompute();
@@ -532,7 +568,7 @@ function isBoardComplete(){
    alle propagierten Änderungen werden automatisch rückgängig gemacht.
    ═══════════════════════════════════════════════════════════ */
 function handleItem(r,c,i,rightClick){
-  if(gameWon) return;
+  if(gameWon||preFilledSet.has(`${r},${c}`)) return;
   const manCur=manual[r][c][i];
   const mrkCur=mark[r][c][i];
 
@@ -618,17 +654,23 @@ function renderBoard(){
       const isConfirmed=(ans>=0);
 
       if(isConfirmed){
-        cell.classList.add('cell-confirmed');
+        const isGiven=preFilledSet.has(`${r},${c}`);
+        cell.classList.add(isGiven?'cell-given':'cell-confirmed');
         const ico=document.createElement('div');
         ico.className='cell-big-icon';
         ico.style.fontSize=Math.floor(cellPx*.47)+'px';
         ico.textContent=CATS[r].items[ans];
-        ico.title='Klicken zum Zurücksetzen dieser Zelle';
-        ico.addEventListener('click',((row,col)=>()=>{
-          if(gameWon) return;
-          for(let i2=0;i2<N;i2++) manual[row][col][i2]=0;
-          recompute();clearStatus();renderBoard();
-        })(r,c));
+        if(isGiven){
+          ico.title=CATS[r].name+' – vorgegebene Lösung';
+        } else {
+          ico.title='Klicken zum Zurücksetzen dieser Zelle';
+          ico.addEventListener('click',((row,col)=>()=>{
+            if(gameWon) return;
+            saveHistory();
+            for(let i2=0;i2<N;i2++) manual[row][col][i2]=0;
+            recompute();clearStatus();renderBoard();
+          })(r,c));
+        }
         cell.appendChild(ico);
       } else {
         for(let i=0;i<N;i++){
@@ -775,6 +817,8 @@ function newGame(){
   setTimeout(()=>{
     const p=buildPuzzle(N);
     solution=p.solution; gameClues=p.clues;
+    preFilled=p.preFilled;
+    preFilledSet=new Set(preFilled.map(({r,c})=>`${r},${c}`));
     initMark();clearStatus();
     renderBoard();renderClues();
   },30);
