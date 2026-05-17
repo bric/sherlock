@@ -28,6 +28,7 @@ button:active{transform:translateY(0)}
 .btn-hint {background:#1976d2;color:#fff}
 .btn-check{background:#e67e22;color:#fff}
 .btn-solve{background:#7b1fa2;color:#fff}
+.btn-undo {background:#37474f;color:#fff}
 
 /* ── Status bar ─────────────────────────────── */
 #status{min-height:36px;text-align:center;margin-bottom:10px}
@@ -163,6 +164,7 @@ footer{text-align:center;color:#334;font-size:11px;margin-top:26px}
   </select>
   <button class="btn-new"   onclick="newGame()">🔄 Neues Spiel</button>
   <button class="btn-reset" onclick="resetBoard()">↺ Zurücksetzen</button>
+  <button class="btn-undo"  onclick="undo()" title="Rückgängig (Strg+Z)">⬅ Rückgängig</button>
   <button class="btn-hint"  onclick="giveHint()">💡 Tipp</button>
   <button class="btn-check" onclick="checkSolution()">✓ Prüfen</button>
   <button class="btn-solve" onclick="showSolution()">👁 Lösung</button>
@@ -455,10 +457,24 @@ function buildPuzzle(n){
 // mark[r][c][i]   = abgeleiteter Zustand (manual + Propagation), nur für Anzeige
 let N=5, solution=[], gameClues=[], manual=[], mark=[], clueUsed=[], gameWon=false;
 let dragSrcIdx=-1;
+let history=[];
+
+function saveHistory(){
+  history.push(manual.map(row=>row.map(cell=>[...cell])));
+  if(history.length>200) history.shift();
+}
+
+function undo(){
+  if(gameWon||history.length===0){setStatus('Kein weiterer Schritt rückgängig.','error');return;}
+  manual=history.pop();
+  gameWon=false;
+  recompute();clearStatus();renderBoard();
+}
 
 function initMark(){
   manual=Array.from({length:N},()=>Array.from({length:N},()=>new Array(N).fill(0)));
   clueUsed=new Array(gameClues.length).fill(false);
+  history=[];
   recompute();
 }
 
@@ -520,6 +536,18 @@ function handleItem(r,c,i,rightClick){
   const manCur=manual[r][c][i];
   const mrkCur=mark[r][c][i];
 
+  if(mrkCur===-1&&!rightClick&&manCur!==1&&manCur!==-1){
+    setStatus('Dieses Symbol ist durch andere Markierungen ausgeschlossen.','error');
+    return;
+  }
+  const nonElimCheck=[...Array(N).keys()].filter(i2=>mark[r][c][i2]!==-1);
+  if(!rightClick&&manCur===0&&mrkCur!==1&&mrkCur!==-1&&nonElimCheck.length===1&&nonElimCheck[0]===i){
+    setStatus('Das letzte verbleibende Symbol kann nicht ausgeschlossen werden!','error');
+    return;
+  }
+
+  saveHistory();
+
   if(rightClick){
     if(manCur===1){
       // Bestätigung rückgängig → gesamte Zelle im manual zurücksetzen
@@ -534,19 +562,8 @@ function handleItem(r,c,i,rightClick){
       // Explizit bestätigt → gesamte Zelle zurücksetzen
       for(let i2=0;i2<N;i2++) manual[r][c][i2]=0;
     } else if(manCur===-1){
-      // Manuell ausgeschlossen → wiederherstellen
       manual[r][c][i]=0;
-    } else if(mrkCur===-1){
-      // Nur propagiert ausgeschlossen → Hinweis, kann nicht direkt wiederhergestellt werden
-      setStatus('Dieses Symbol ist durch andere Markierungen ausgeschlossen.','error');
-      return;
     } else {
-      // Möglich → ausschließen, aber nicht das letzte verbleibende
-      const nonElim=[...Array(N).keys()].filter(i2=>mark[r][c][i2]!==-1);
-      if(nonElim.length===1&&nonElim[0]===i){
-        setStatus('Das letzte verbleibende Symbol kann nicht ausgeschlossen werden!','error');
-        return;
-      }
       manual[r][c][i]=-1;
     }
   }
@@ -785,7 +802,7 @@ function giveHint(){
     for(let r=0;r<N;r++) for(let i=0;i<N;i++){
       for(const c of basePoss[r][i]){
         if(!cp[r][i].has(c)&&mark[r][c][i]!==-1){
-          manual[r][c][i]=-1;
+          saveHistory();manual[r][c][i]=-1;
           recompute();renderBoard();
           const meta=clueMeta(gameClues[ci]);
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — Regel: „${meta.desc}"`, 'hint');
@@ -801,7 +818,7 @@ function giveHint(){
     if(cellAnswer(r,c)>=0) continue;
     for(let i=0;i<N;i++){
       if(i!==solution[r][c]&&mark[r][c][i]!==-1){
-        manual[r][c][i]=-1;
+        saveHistory();manual[r][c][i]=-1;
         recompute();renderBoard();
         setStatus(`💡 ${CATS[r].items[i]} gehört nicht in Spalte ${c+1} (${CATS[r].name}) — folgt aus Kombination mehrerer Regeln`,'hint');
         return;
@@ -841,6 +858,7 @@ function showSolution(){
    ═══════════════════════════════════════════════════════════ */
 window.addEventListener('load',newGame);
 window.addEventListener('resize',()=>{if(solution.length) renderBoard();});
+window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}});
 </script>
 </body>
 </html>
