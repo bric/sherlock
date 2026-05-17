@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔍 Sherlock – Logikrätsel</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;
+  background:linear-gradient(160deg,#0d0d1a 0%,#111827 60%,#0f1f3d 100%);
+  color:#e0e0e0;min-height:100vh;padding:18px 12px;
+}
+header{text-align:center;margin-bottom:16px}
+header h1{font-size:clamp(22px,5vw,38px);color:#ffd700;text-shadow:0 0 24px rgba(255,215,0,.45);letter-spacing:2px}
+header p{color:#778;font-size:12px;margin-top:3px}
+
+/* ── Controls ───────────────────────────────── */
+.controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+.legend{text-align:center;color:#556;font-size:11px;margin-bottom:10px}
+.legend span{margin:0 8px}
+select,button{padding:7px 13px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:transform .1s,filter .1s}
+select{background:#1a2040;color:#d0d8f0;border:1px solid #2a3a6a}
+button:hover{filter:brightness(1.15);transform:translateY(-1px)}
+button:active{transform:translateY(0)}
+.btn-new  {background:#27ae60;color:#fff}
+.btn-reset{background:#546e7a;color:#fff}
+.btn-hint {background:#1976d2;color:#fff}
+.btn-check{background:#e67e22;color:#fff}
+.btn-solve{background:#7b1fa2;color:#fff}
+
+/* ── Status bar ─────────────────────────────── */
+#status{min-height:36px;text-align:center;margin-bottom:10px}
+.msg{display:inline-block;padding:7px 18px;border-radius:10px;font-weight:700;font-size:13px}
+.msg-win  {background:#27ae60;color:#fff}
+.msg-error{background:#c0392b;color:#fff}
+.msg-hint {background:#1976d2;color:#fff}
+
+/* ── Board ──────────────────────────────────── */
+#board{display:grid;gap:5px;margin:0 auto;width:fit-content}
+
+.col-hdr{text-align:center;color:#445;font-size:12px;font-weight:700;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.row-lbl{display:flex;align-items:center;justify-content:center;border-radius:7px;
+  font-size:9px;font-weight:700;padding:3px 2px;text-align:center;line-height:1.2}
+
+/* Cell */
+.cell{
+  background:#12192e;border:2px solid #1c2e52;border-radius:9px;
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  padding:3px;gap:2px;transition:border-color .25s,background .25s;position:relative;
+}
+.cell.cell-confirmed{
+  border-color:#27ae60;background:#091a0e;
+  box-shadow:0 0 14px rgba(39,174,96,.3);
+}
+.cell.cell-wrong{border-color:#c0392b;background:#1a0909}
+
+/* Large icon when cell is fully confirmed */
+.cell-big-icon{
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;line-height:1;cursor:pointer;
+  position:relative;
+}
+.cell-big-icon::after{
+  content:'↺';position:absolute;bottom:2px;right:4px;
+  font-size:9px;color:rgba(255,255,255,.3);
+}
+
+/* Individual item buttons — 3 states */
+.itm{
+  display:flex;align-items:center;justify-content:center;
+  border-radius:4px;cursor:pointer;user-select:none;
+  transition:opacity .12s,transform .1s,background .1s,border-color .1s;
+  line-height:1;font-weight:700;position:relative;
+}
+/* State 0: possible */
+.itm{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.09);}
+.itm:hover{background:rgba(255,255,255,.2);transform:scale(1.13)}
+/* State 1: confirmed (right-click placed) */
+.itm.placed{
+  background:rgba(39,174,96,.35);border:1.5px solid #27ae60;
+  box-shadow:0 0 6px rgba(39,174,96,.5);
+}
+.itm.placed:hover{background:rgba(39,174,96,.5)}
+/* State -1: eliminated */
+.itm.elim{opacity:.1;background:transparent;border-color:transparent}
+.itm.elim:hover{opacity:.3}
+
+/* ── Game area: left col (board + vert clues), right col (horiz clues) ── */
+#game-area{display:flex;gap:18px;align-items:flex-start;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+#left-col{display:flex;flex-direction:column;gap:14px;flex-shrink:0}
+#board-wrap{overflow-x:auto}
+
+/* ── Clue panels ─────────────────────────────── */
+#clues-horiz-section{flex:1;min-width:220px;max-width:460px}
+#clues-horiz-section h2,#clues-vert-section h2{text-align:center;color:#ffd700;font-size:15px;margin-bottom:10px}
+#clues-grid-horiz{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#clues-grid-vert{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+
+.clue-card{
+  background:#12192e;border:2px solid #1c2e52;border-radius:11px;
+  padding:8px 10px;display:flex;flex-direction:column;align-items:center;
+  gap:4px;cursor:pointer;transition:border-color .2s,opacity .2s;min-width:90px;
+  user-select:none;
+}
+.clue-card:hover{border-color:#ffd700}
+@keyframes hint-pulse{0%,100%{box-shadow:0 0 6px rgba(255,215,0,.3)}50%{box-shadow:0 0 26px rgba(255,215,0,.9),0 0 6px rgba(255,215,0,.5)}}
+.clue-card.hint-flash{border-color:#ffd700!important;opacity:1!important;animation:hint-pulse .55s ease-in-out 5}
+.clue-card.used{
+  opacity:.3;
+  border-color:#2a3a2a;
+  position:relative;
+}
+.clue-card.used::after{
+  content:'✓';
+  position:absolute;top:3px;right:6px;
+  font-size:11px;color:#4a7;font-weight:900;
+}
+.clue-card[draggable="true"]{cursor:grab}
+.clue-card[draggable="true"]:active{cursor:grabbing}
+.clue-card.dragging{opacity:.35;border-style:dashed}
+.clue-card.drag-over{
+  border-color:#ffd700;background:#1c2a10;
+  transform:scale(1.06);
+}
+
+/* Horizontal layout (default): badge  rel  badge */
+.clue-items{display:flex;align-items:center;gap:4px;justify-content:center;flex-wrap:wrap}
+
+/* Vertical layout for SAME_COL: badges stacked */
+.clue-items-vert{
+  display:flex;flex-direction:column;align-items:center;gap:0;
+}
+.clue-items-vert .vert-line{
+  width:2px;height:10px;background:#ffd700;margin:0 auto;
+  border-radius:1px;
+}
+
+.clue-rel{font-size:13px;color:#ffd700;font-weight:900;line-height:1}
+.clue-desc{font-size:10px;color:#667;text-align:center;line-height:1.3;max-width:130px}
+
+.badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:6px;font-size:15px;font-weight:700;
+}
+
+footer{text-align:center;color:#334;font-size:11px;margin-top:26px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 SHERLOCK</h1>
+  <p>Logikrätsel – Finde die richtige Position jedes Symbols!</p>
+</header>
+
+<div class="controls">
+  <select id="size-sel">
+    <option value="4">4×4 – Leicht</option>
+    <option value="5" selected>5×5 – Mittel</option>
+    <option value="6">6×6 – Schwer</option>
+  </select>
+  <button class="btn-new"   onclick="newGame()">🔄 Neues Spiel</button>
+  <button class="btn-reset" onclick="resetBoard()">↺ Zurücksetzen</button>
+  <button class="btn-hint"  onclick="giveHint()">💡 Tipp</button>
+  <button class="btn-check" onclick="checkSolution()">✓ Prüfen</button>
+  <button class="btn-solve" onclick="showSolution()">👁 Lösung</button>
+</div>
+<div class="legend">
+  <span>🖱 Linksklick = ausschließen / wiederherstellen</span>
+  <span>🖱 Rechtsklick = direkt als richtig markieren</span>
+</div>
+
+<div id="status"></div>
+
+<div id="game-area">
+  <div id="left-col">
+    <div id="board-wrap"><div id="board"></div></div>
+    <div id="clues-vert-section">
+      <h2>↕ Senkrechte Hinweise</h2>
+      <div id="clues-grid-vert"></div>
+    </div>
+  </div>
+  <div id="clues-horiz-section">
+    <h2>↔ Waagerechte Hinweise</h2>
+    <div id="clues-grid-horiz"></div>
+  </div>
+</div>
+
+<footer>Nachbau des klassischen DOS-Spiels Sherlock – The Game of Logic (Everett Kaser Software, 1991)</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   KATEGORIEN
+   ═══════════════════════════════════════════════════════════ */
+const CATS = [
+  { name:'Zahlen',  items:['1','2','3','4','5','6'], color:'#e74c3c' },
+  { name:'Buchst.', items:['A','B','C','D','E','F'], color:'#1abc9c' },
+  { name:'Tiere',   items:['🐶','🐱','🐭','🐹','🐰','🦊'], color:'#3498db' },
+  { name:'Früchte', items:['🍎','🍌','🍒','🍇','🍊','🍋'], color:'#2ecc71' },
+  { name:'Formen',  items:['◆','★','■','●','▲','♥'],       color:'#f1c40f' },
+  { name:'Wetter',  items:['☀','🌙','⭐','⛅','🌧','❄'],   color:'#9b59b6' },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   HINWEISTYPEN
+   ═══════════════════════════════════════════════════════════ */
+const CT = {
+  SAME_COL:'same_col',     // X und Y stehen übereinander (gleiche Spalte)
+  NOT_SAME_COL:'not_same', // X und Y stehen NICHT übereinander
+  ADJACENT:'adj',          // X und Y sind direkt nebeneinander
+  NOT_ADJACENT:'not_adj',  // X und Y sind NICHT nebeneinander
+  LEFT_OF:'left_of',       // X steht irgendwo links von Y
+  BETWEEN:'between',       // X liegt direkt (unmittelbar) zwischen Y und Z
+  ONE_APART:'one_apart',   // genau eine Spalte zwischen X und Y
+};
+
+function clueMeta(clue) {
+  const ic = (r,i) => CATS[r].items[i];
+  switch(clue.type) {
+    case CT.SAME_COL:
+      return { layout:'vert', desc:`${ic(clue.r1,clue.i1)} und ${ic(clue.r2,clue.i2)} stehen in derselben Spalte` };
+    case CT.NOT_SAME_COL:
+      return { rel:'≠↕', desc:`${ic(clue.r1,clue.i1)} und ${ic(clue.r2,clue.i2)} stehen NICHT in derselben Spalte` };
+    case CT.ADJACENT:
+      return { rel:'↔', desc:`${ic(clue.r1,clue.i1)} steht direkt neben ${ic(clue.r2,clue.i2)}` };
+    case CT.NOT_ADJACENT:
+      return { rel:'↮', desc:`${ic(clue.r1,clue.i1)} steht NICHT direkt neben ${ic(clue.r2,clue.i2)}` };
+    case CT.LEFT_OF:
+      return { rel:'…', desc:`${ic(clue.r1,clue.i1)} ist links von ${ic(clue.r2,clue.i2)}` };
+    case CT.BETWEEN:
+      return { layout:'between', desc:`${ic(clue.r1,clue.i1)} liegt direkt zwischen ${ic(clue.r2,clue.i2)} und ${ic(clue.r3,clue.i3)}` };
+    case CT.ONE_APART:
+      return { rel:'·|·', desc:`Genau eine Spalte zwischen ${ic(clue.r1,clue.i1)} und ${ic(clue.r2,clue.i2)}` };
+    default: return { rel:'?', desc:'' };
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HILFSFUNKTIONEN
+   ═══════════════════════════════════════════════════════════ */
+function shuffle(a){
+  const b=[...a];
+  for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}
+  return b;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LÖSUNG GENERIEREN
+   solution[row][col] = itemIndex   pos[row][item] = col
+   ═══════════════════════════════════════════════════════════ */
+function makeSolution(n){
+  const solution=[],pos=[];
+  for(let r=0;r<n;r++){
+    const perm=shuffle([...Array(n).keys()]);
+    solution.push(perm);
+    const rp=new Array(n);
+    for(let c=0;c<n;c++) rp[perm[c]]=c;
+    pos.push(rp);
+  }
+  return {solution,pos};
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ALLE MÖGLICHEN HINWEISE GENERIEREN
+   ═══════════════════════════════════════════════════════════ */
+function allCluesFrom(sol,p,n){
+  const all=[];
+
+  // Pairweise Hinweise (r1 < r2 für Symmetrie)
+  for(let r1=0;r1<n;r1++) for(let i1=0;i1<n;i1++){
+    const c1=p[r1][i1];
+    for(let r2=r1+1;r2<n;r2++) for(let i2=0;i2<n;i2++){
+      const c2=p[r2][i2], d=Math.abs(c1-c2);
+      if(c1===c2)  all.push({type:CT.SAME_COL,    r1,i1,r2,i2});
+      else         all.push({type:CT.NOT_SAME_COL, r1,i1,r2,i2});
+      if(d===1)    all.push({type:CT.ADJACENT,     r1,i1,r2,i2});
+      else if(d>1) all.push({type:CT.NOT_ADJACENT, r1,i1,r2,i2});
+      if(c1<c2)   all.push({type:CT.LEFT_OF, r1,i1,r2,i2});
+      else if(c2<c1) all.push({type:CT.LEFT_OF,r1:r2,i1:i2,r2:r1,i2:i1});
+      if(d===2)    all.push({type:CT.ONE_APART,    r1,i1,r2,i2});
+    }
+  }
+
+  // BETWEEN-Hinweise: (r1,i1) liegt zwischen (r2,i2) und (r3,i3)
+  for(let r1=0;r1<n;r1++) for(let i1=0;i1<n;i1++){
+    const c1=p[r1][i1];
+    for(let r2=0;r2<n;r2++){
+      if(r2===r1) continue;
+      for(let i2=0;i2<n;i2++){
+        const c2=p[r2][i2];
+        for(let r3=r2+1;r3<n;r3++){
+          if(r3===r1) continue;
+          for(let i3=0;i3<n;i3++){
+            const c3=p[r3][i3];
+            if((c2+1===c1&&c1+1===c3)||(c3+1===c1&&c1+1===c2))
+              all.push({type:CT.BETWEEN,r1,i1,r2,i2,r3,i3});
+          }
+        }
+      }
+    }
+  }
+  return all;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONSTRAINT-SOLVER
+   poss[row][item] = Set<col>  (mögliche Spaltenpositionen)
+   ═══════════════════════════════════════════════════════════ */
+function initPoss(n){
+  const all=new Set([...Array(n).keys()]);
+  return Array.from({length:n},()=>Array.from({length:n},()=>new Set(all)));
+}
+function clonePoss(p){return p.map(r=>r.map(s=>new Set(s)));}
+
+function applyClue(poss,clue,n){
+  const {type,r1,i1,r2,i2,r3,i3}=clue;
+  switch(type){
+    case CT.SAME_COL:{
+      const ok=new Set([...poss[r1][i1]].filter(c=>poss[r2][i2].has(c)));
+      poss[r1][i1]=new Set(ok);poss[r2][i2]=new Set(ok);break;
+    }
+    case CT.NOT_SAME_COL:{
+      if(poss[r1][i1].size===1){const c=[...poss[r1][i1]][0];poss[r2][i2].delete(c);}
+      if(poss[r2][i2].size===1){const c=[...poss[r2][i2]][0];poss[r1][i1].delete(c);}
+      break;
+    }
+    case CT.ADJACENT:{
+      const a1=new Set(),a2=new Set();
+      for(const c1 of poss[r1][i1]) for(const c2 of poss[r2][i2])
+        if(Math.abs(c1-c2)===1){a1.add(c1);a2.add(c2);}
+      poss[r1][i1]=new Set([...poss[r1][i1]].filter(c=>a1.has(c)));
+      poss[r2][i2]=new Set([...poss[r2][i2]].filter(c=>a2.has(c)));break;
+    }
+    case CT.NOT_ADJACENT:{
+      if(poss[r1][i1].size===1){const c=[...poss[r1][i1]][0];poss[r2][i2].delete(c-1);poss[r2][i2].delete(c+1);}
+      if(poss[r2][i2].size===1){const c=[...poss[r2][i2]][0];poss[r1][i1].delete(c-1);poss[r1][i1].delete(c+1);}
+      break;
+    }
+    case CT.LEFT_OF:{
+      const a1=new Set(),a2=new Set();
+      for(const c1 of poss[r1][i1]) for(const c2 of poss[r2][i2])
+        if(c1<c2){a1.add(c1);a2.add(c2);}
+      poss[r1][i1]=new Set([...poss[r1][i1]].filter(c=>a1.has(c)));
+      poss[r2][i2]=new Set([...poss[r2][i2]].filter(c=>a2.has(c)));break;
+    }
+    case CT.BETWEEN:{
+      const a1=new Set(),a2=new Set(),a3=new Set();
+      for(const c1 of poss[r1][i1])
+        for(const c2 of poss[r2][i2])
+          for(const c3 of poss[r3][i3])
+            if((c2+1===c1&&c1+1===c3)||(c3+1===c1&&c1+1===c2)){a1.add(c1);a2.add(c2);a3.add(c3);}
+      poss[r1][i1]=new Set([...poss[r1][i1]].filter(c=>a1.has(c)));
+      poss[r2][i2]=new Set([...poss[r2][i2]].filter(c=>a2.has(c)));
+      poss[r3][i3]=new Set([...poss[r3][i3]].filter(c=>a3.has(c)));break;
+    }
+    case CT.ONE_APART:{
+      const a1=new Set(),a2=new Set();
+      for(const c1 of poss[r1][i1]) for(const c2 of poss[r2][i2])
+        if(Math.abs(c1-c2)===2){a1.add(c1);a2.add(c2);}
+      poss[r1][i1]=new Set([...poss[r1][i1]].filter(c=>a1.has(c)));
+      poss[r2][i2]=new Set([...poss[r2][i2]].filter(c=>a2.has(c)));break;
+    }
+  }
+  return !poss.some(row=>row.some(s=>s.size===0));
+}
+
+function propagate(poss,clues,n){
+  let changed=true;
+  while(changed){
+    changed=false;
+    const snap=()=>poss.map(r=>r.map(s=>s.size)).join(',');
+    const before=snap();
+    for(const clue of clues) if(!applyClue(poss,clue,n)) return false;
+    // Zeil-Eindeutigkeit
+    for(let r=0;r<n;r++) for(let i=0;i<n;i++){
+      if(poss[r][i].size===1){
+        const c=[...poss[r][i]][0];
+        for(let i2=0;i2<n;i2++){
+          if(i2!==i&&poss[r][i2].has(c)){poss[r][i2].delete(c);if(poss[r][i2].size===0)return false;}
+        }
+      }
+    }
+    // Spalten-Eindeutigkeit
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++){
+      const who=[];
+      for(let i=0;i<n;i++) if(poss[r][i].has(c)) who.push(i);
+      if(who.length===0) return false;
+      if(who.length===1&&poss[r][who[0]].size>1) poss[r][who[0]]=new Set([c]);
+    }
+    if(snap()!==before) changed=true;
+  }
+  return true;
+}
+
+function isSolvedPoss(poss){return poss.every(r=>r.every(s=>s.size===1));}
+
+function countSols(clues,n,limit=2){
+  function bt(poss,cnt){
+    if(cnt>=limit) return cnt;
+    if(!propagate(poss,clues,n)) return cnt;
+    if(isSolvedPoss(poss)) return cnt+1;
+    let best=n+1,br=-1,bi=-1;
+    for(let r=0;r<n;r++) for(let i=0;i<n;i++)
+      if(poss[r][i].size>1&&poss[r][i].size<best){best=poss[r][i].size;br=r;bi=i;}
+    if(br===-1) return cnt;
+    for(const c of [...poss[br][bi]]){
+      const cp=clonePoss(poss);cp[br][bi]=new Set([c]);
+      cnt=bt(cp,cnt);if(cnt>=limit) return cnt;
+    }
+    return cnt;
+  }
+  return bt(initPoss(n),0);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PUZZLE BUILDER
+   ═══════════════════════════════════════════════════════════ */
+function buildPuzzle(n){
+  const {solution,pos}=makeSolution(n);
+  const raw=allCluesFrom(solution,pos,n);
+  const posTypes=[CT.ADJACENT,CT.LEFT_OF,CT.BETWEEN,CT.ONE_APART];
+  const vertPool=shuffle(raw.filter(c=>c.type===CT.SAME_COL));
+  const horizPool=[
+    ...shuffle(raw.filter(c=>posTypes.includes(c.type))),
+    ...shuffle(raw.filter(c=>!posTypes.includes(c.type)&&c.type!==CT.SAME_COL)),
+  ];
+
+  // Interleave 2 horizontal : 1 vertical so the final selection lands ~2:1
+  const ordered=[];
+  let hi=0,vi=0;
+  while(hi<horizPool.length||vi<vertPool.length){
+    if(hi<horizPool.length) ordered.push(horizPool[hi++]);
+    if(hi<horizPool.length) ordered.push(horizPool[hi++]);
+    if(vi<vertPool.length)  ordered.push(vertPool[vi++]);
+  }
+
+  const selected=[];
+  for(const clue of ordered){
+    selected.push(clue);
+    if(countSols(selected,n)===1) break;
+  }
+  return {solution,pos,clues:selected};
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SPIELZUSTAND
+   mark[row][col][item]:
+     0  = möglich (unbekannt)
+     1  = bestätigt (richtig markiert)
+    -1  = ausgeschlossen
+   ═══════════════════════════════════════════════════════════ */
+// manual[r][c][i] = was der Spieler explizit gesetzt hat: 0/1/-1
+// mark[r][c][i]   = abgeleiteter Zustand (manual + Propagation), nur für Anzeige
+let N=5, solution=[], gameClues=[], manual=[], mark=[], clueUsed=[], gameWon=false;
+let dragSrcIdx=-1;
+
+function initMark(){
+  manual=Array.from({length:N},()=>Array.from({length:N},()=>new Array(N).fill(0)));
+  clueUsed=new Array(gameClues.length).fill(false);
+  recompute();
+}
+
+/* Leitet mark aus manual ab, dann propagiert Zeilen- und Spalten-Eindeutigkeit */
+function recompute(){
+  mark=manual.map(row=>row.map(cell=>[...cell]));
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(let r=0;r<N;r++){
+      for(let c=0;c<N;c++){
+        // Bestätigtes oder letztes verbleibendes Item → in anderen Spalten entfernen
+        const confIdx=mark[r][c].findIndex(v=>v===1);
+        const nonElim=[...Array(N).keys()].filter(i=>mark[r][c][i]!==-1);
+        const eff=confIdx>=0 ? confIdx : (nonElim.length===1 ? nonElim[0] : -1);
+        if(eff>=0){
+          for(let c2=0;c2<N;c2++){
+            if(c2!==c&&mark[r][c2][eff]!==-1){mark[r][c2][eff]=-1;changed=true;}
+          }
+        }
+      }
+      // Spalten-Eindeutigkeit: Item das nur noch in eine Spalte passt → dort alle anderen raus
+      for(let i=0;i<N;i++){
+        const poss=[...Array(N).keys()].filter(c=>mark[r][c][i]!==-1);
+        if(poss.length===1){
+          const c=poss[0];
+          for(let i2=0;i2<N;i2++){
+            if(i2!==i&&mark[r][c][i2]!==-1){mark[r][c][i2]=-1;changed=true;}
+          }
+        }
+      }
+    }
+  }
+}
+
+/* Gibt das gelöste Item zurück (explizit bestätigt ODER letzter Rest nach mark) */
+function cellAnswer(r,c){
+  const placed=mark[r][c].findIndex(v=>v===1);
+  if(placed>=0) return placed;
+  const possible=[...Array(N).keys()].filter(i=>mark[r][c][i]!==-1);
+  return possible.length===1 ? possible[0] : -1;
+}
+
+function isBoardComplete(){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++)
+    if(cellAnswer(r,c)!==solution[r][c]) return false;
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INTERAKTION
+   Linksklick  → ausschließen / wiederherstellen
+   Rechtsklick → direkt als richtig markieren / zurücksetzen
+   Nur manual wird verändert; recompute() leitet mark neu ab →
+   alle propagierten Änderungen werden automatisch rückgängig gemacht.
+   ═══════════════════════════════════════════════════════════ */
+function handleItem(r,c,i,rightClick){
+  if(gameWon) return;
+  const manCur=manual[r][c][i];
+  const mrkCur=mark[r][c][i];
+
+  if(rightClick){
+    if(manCur===1){
+      // Bestätigung rückgängig → gesamte Zelle im manual zurücksetzen
+      // → recompute entfernt automatisch alle propagierten Ausschlüsse in anderen Zellen
+      for(let i2=0;i2<N;i2++) manual[r][c][i2]=0;
+    } else {
+      // Als richtig markieren: manual setzt 1 für dieses Item, -1 für Rest in der Zelle
+      for(let i2=0;i2<N;i2++) manual[r][c][i2]=(i2===i ? 1 : -1);
+    }
+  } else {
+    if(manCur===1){
+      // Explizit bestätigt → gesamte Zelle zurücksetzen
+      for(let i2=0;i2<N;i2++) manual[r][c][i2]=0;
+    } else if(manCur===-1){
+      // Manuell ausgeschlossen → wiederherstellen
+      manual[r][c][i]=0;
+    } else if(mrkCur===-1){
+      // Nur propagiert ausgeschlossen → Hinweis, kann nicht direkt wiederhergestellt werden
+      setStatus('Dieses Symbol ist durch andere Markierungen ausgeschlossen.','error');
+      return;
+    } else {
+      // Möglich → ausschließen, aber nicht das letzte verbleibende
+      const nonElim=[...Array(N).keys()].filter(i2=>mark[r][c][i2]!==-1);
+      if(nonElim.length===1&&nonElim[0]===i){
+        setStatus('Das letzte verbleibende Symbol kann nicht ausgeschlossen werden!','error');
+        return;
+      }
+      manual[r][c][i]=-1;
+    }
+  }
+
+  recompute();
+  clearStatus();
+  renderBoard();
+
+  if(isBoardComplete()){
+    gameWon=true;
+    setStatus('🎉 Hervorragend! Du hast das Rätsel gelöst, Sherlock!','win');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOARD RENDERN
+   ═══════════════════════════════════════════════════════════ */
+function renderBoard(){
+  const board=document.getElementById('board');
+  board.innerHTML='';
+
+  const vw=Math.min(window.innerWidth,860);
+  const cellPx=Math.max(50,Math.min(90,Math.floor((vw-80)/(N+1))));
+  const itmPx =Math.max(13,Math.floor((cellPx-10)/(N<=4?2:3))-3);
+  const fSize =Math.max(9,Math.floor(itmPx*.72));
+
+  board.style.gridTemplateColumns=`50px repeat(${N},${cellPx}px)`;
+  board.style.gridTemplateRows   =`22px repeat(${N},${cellPx}px)`;
+
+  // Ecke
+  board.appendChild(document.createElement('div'));
+  // Spaltenköpfe
+  for(let c=0;c<N;c++){
+    const h=document.createElement('div');
+    h.className='col-hdr';h.textContent=c+1;board.appendChild(h);
+  }
+
+  for(let r=0;r<N;r++){
+    // Zeilenbezeichnung
+    const lbl=document.createElement('div');
+    lbl.className='row-lbl';
+    lbl.style.cssText=`background:${CATS[r].color}22;color:${CATS[r].color}`;
+    lbl.textContent=CATS[r].name;
+    board.appendChild(lbl);
+
+    for(let c=0;c<N;c++){
+      const cell=document.createElement('div');
+      cell.className='cell';
+      cell.style.width=cellPx+'px';cell.style.height=cellPx+'px';
+
+      const ans=cellAnswer(r,c);
+      const isConfirmed=(ans>=0);
+
+      if(isConfirmed){
+        cell.classList.add('cell-confirmed');
+        const ico=document.createElement('div');
+        ico.className='cell-big-icon';
+        ico.style.fontSize=Math.floor(cellPx*.47)+'px';
+        ico.textContent=CATS[r].items[ans];
+        ico.title='Klicken zum Zurücksetzen dieser Zelle';
+        ico.addEventListener('click',((row,col)=>()=>{
+          if(gameWon) return;
+          for(let i2=0;i2<N;i2++) manual[row][col][i2]=0;
+          recompute();clearStatus();renderBoard();
+        })(r,c));
+        cell.appendChild(ico);
+      } else {
+        for(let i=0;i<N;i++){
+          const st=mark[r][c][i]; // 0, 1, -1
+          const btn=document.createElement('div');
+          btn.className='itm'+(st===1?' placed':st===-1?' elim':'');
+          btn.textContent=CATS[r].items[i];
+          btn.style.width=itmPx+'px';btn.style.height=itmPx+'px';
+          btn.style.fontSize=fSize+'px';
+          let tip='';
+          if(st===1)       tip='Bestätigt – Linksklick zum Zurücksetzen';
+          else if(st===-1) tip='Ausgeschlossen – Linksklick zum Wiederherstellen';
+          else             tip='Linksklick: ausschließen | Rechtsklick: als richtig markieren';
+          btn.title=tip;
+          btn.addEventListener('click',    ((rr,cc,ii)=>e=>{e.preventDefault();handleItem(rr,cc,ii,false);})(r,c,i));
+          btn.addEventListener('contextmenu',((rr,cc,ii)=>e=>{e.preventDefault();handleItem(rr,cc,ii,true);})(r,c,i));
+          cell.appendChild(btn);
+        }
+      }
+      board.appendChild(cell);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HINWEISE RENDERN
+   ═══════════════════════════════════════════════════════════ */
+function renderClues(){
+  const gridH=document.getElementById('clues-grid-horiz');
+  const gridV=document.getElementById('clues-grid-vert');
+  gridH.innerHTML='';gridV.innerHTML='';
+
+  gameClues.forEach((clue,idx)=>{
+    const isVert=clue.type===CT.SAME_COL;
+    const grid=isVert?gridV:gridH;
+    const meta=clueMeta(clue);
+    const card=document.createElement('div');
+    card.className='clue-card'+(clueUsed[idx]?' used':'');
+    card.dataset.clueIdx=idx;
+    card.title=meta.desc+'\n(Klicken: abhaken | Ziehen: verschieben)';
+    card.draggable=true;
+
+    // ── Klick: abhaken ──────────────────────────
+    let dragMoved=false;
+    card.addEventListener('click',()=>{
+      if(dragMoved) return; // kein Toggle wenn gerade gezogen wurde
+      clueUsed[idx]=!clueUsed[idx];
+      renderClues();
+    });
+
+    // ── Drag & Drop: umsortieren ────────────────
+    card.addEventListener('dragstart',e=>{
+      dragMoved=true;
+      dragSrcIdx=idx;
+      e.dataTransfer.effectAllowed='move';
+      setTimeout(()=>card.classList.add('dragging'),0);
+    });
+    card.addEventListener('dragend',()=>{
+      dragMoved=false;
+      card.classList.remove('dragging');
+      document.querySelectorAll('.clue-card').forEach(c=>c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      if(idx!==dragSrcIdx) card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave',()=>{
+      card.classList.remove('drag-over');
+    });
+    card.addEventListener('drop',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      card.classList.remove('drag-over');
+      if(dragSrcIdx>=0 && dragSrcIdx!==idx){
+        // Positionen tauschen
+        [gameClues[dragSrcIdx],gameClues[idx]]=[gameClues[idx],gameClues[dragSrcIdx]];
+        [clueUsed[dragSrcIdx],clueUsed[idx]]=[clueUsed[idx],clueUsed[dragSrcIdx]];
+        renderClues();
+      }
+    });
+
+    const mkBadge=(r,i)=>{
+      const b=document.createElement('span');
+      b.className='badge';
+      b.style.cssText=`background:${CATS[r].color}30;color:${CATS[r].color}`;
+      b.textContent=CATS[r].items[i];
+      return b;
+    };
+
+    if(meta.layout==='vert'){
+      // SAME_COL: Items übereinander gestapelt mit verbindender Linie
+      const wrap=document.createElement('div');
+      wrap.className='clue-items-vert';
+      wrap.appendChild(mkBadge(clue.r1,clue.i1));
+      const line=document.createElement('div');
+      line.className='vert-line';wrap.appendChild(line);
+      wrap.appendChild(mkBadge(clue.r2,clue.i2));
+      card.appendChild(wrap);
+
+    } else if(meta.layout==='between'){
+      // BETWEEN: [B] ‹ [A] › [C]
+      const wrap=document.createElement('div');
+      wrap.className='clue-items';
+      wrap.appendChild(mkBadge(clue.r2,clue.i2));
+      const l=document.createElement('span');l.className='clue-rel';l.textContent='‹';wrap.appendChild(l);
+      wrap.appendChild(mkBadge(clue.r1,clue.i1));
+      const r2=document.createElement('span');r2.className='clue-rel';r2.textContent='›';wrap.appendChild(r2);
+      wrap.appendChild(mkBadge(clue.r3,clue.i3));
+      card.appendChild(wrap);
+
+    } else {
+      // Standard: [A] rel [B]
+      const wrap=document.createElement('div');
+      wrap.className='clue-items';
+      wrap.appendChild(mkBadge(clue.r1,clue.i1));
+      const rel=document.createElement('span');rel.className='clue-rel';rel.textContent=meta.rel;wrap.appendChild(rel);
+      wrap.appendChild(mkBadge(clue.r2,clue.i2));
+      card.appendChild(wrap);
+    }
+
+    const desc=document.createElement('div');
+    desc.className='clue-desc';desc.textContent=meta.desc;
+    card.appendChild(desc);
+    grid.appendChild(card);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATUS
+   ═══════════════════════════════════════════════════════════ */
+function setStatus(msg,type){
+  document.getElementById('status').innerHTML=`<span class="msg msg-${type}">${msg}</span>`;
+}
+function clearStatus(){document.getElementById('status').innerHTML='';}
+
+/* ═══════════════════════════════════════════════════════════
+   SPIELSTEUERUNG
+   ═══════════════════════════════════════════════════════════ */
+function newGame(){
+  N=parseInt(document.getElementById('size-sel').value);
+  gameWon=false;
+  setStatus('⏳ Generiere einzigartiges Rätsel …','hint');
+  setTimeout(()=>{
+    const p=buildPuzzle(N);
+    solution=p.solution; gameClues=p.clues;
+    initMark();clearStatus();
+    renderBoard();renderClues();
+  },30);
+}
+
+function resetBoard(){
+  if(gameWon&&!confirm('Spiel zurücksetzen?')) return;
+  gameWon=false;initMark();clearStatus();renderBoard();renderClues();
+}
+
+function giveHint(){
+  if(gameWon) return;
+
+  // Aktuellen mark-Zustand in poss-Format umwandeln (poss[row][item] = Set<col>)
+  const basePoss=Array.from({length:N},(_,r)=>
+    Array.from({length:N},(_,i)=>
+      new Set([...Array(N).keys()].filter(c=>mark[r][c][i]!==-1))
+    )
+  );
+
+  // Jeden Hinweis einzeln anwenden und schauen ob er direkt etwas ausschließt
+  for(let ci=0;ci<gameClues.length;ci++){
+    const cp=clonePoss(basePoss);
+    if(!applyClue(cp,gameClues[ci],N)) continue;
+    for(let r=0;r<N;r++) for(let i=0;i<N;i++){
+      for(const c of basePoss[r][i]){
+        if(!cp[r][i].has(c)&&mark[r][c][i]!==-1){
+          manual[r][c][i]=-1;
+          recompute();renderBoard();
+          const meta=clueMeta(gameClues[ci]);
+          setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — Regel: „${meta.desc}"`, 'hint');
+          highlightClueCard(ci);
+          return;
+        }
+      }
+    }
+  }
+
+  // Fallback: kein einzelner Hinweis feuert direkt (Kettenlogik nötig)
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    if(cellAnswer(r,c)>=0) continue;
+    for(let i=0;i<N;i++){
+      if(i!==solution[r][c]&&mark[r][c][i]!==-1){
+        manual[r][c][i]=-1;
+        recompute();renderBoard();
+        setStatus(`💡 ${CATS[r].items[i]} gehört nicht in Spalte ${c+1} (${CATS[r].name}) — folgt aus Kombination mehrerer Regeln`,'hint');
+        return;
+      }
+    }
+  }
+  setStatus('💡 Alle Felder sind bereits korrekt markiert!','hint');
+}
+
+function highlightClueCard(idx){
+  const card=document.querySelector(`.clue-card[data-clue-idx="${idx}"]`);
+  if(!card) return;
+  card.scrollIntoView({behavior:'smooth',block:'nearest'});
+  card.classList.add('hint-flash');
+  setTimeout(()=>card.classList.remove('hint-flash'),3000);
+}
+
+function checkSolution(){
+  let wrongs=0,confirmed=0;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const ans=cellAnswer(r,c);
+    if(ans>=0){confirmed++;if(ans!==solution[r][c])wrongs++;}
+  }
+  if(wrongs===0) setStatus(`✓ Keine Fehler! ${confirmed}/${N*N} Felder bestätigt.`,'hint');
+  else           setStatus(`✗ ${wrongs} falsch bestätigte Felder! Überprüfe deine Markierungen.`,'error');
+}
+
+function showSolution(){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) for(let i=0;i<N;i++)
+    manual[r][c][i]=(i===solution[r][c]?1:-1);
+  gameWon=true;recompute();renderBoard();
+  setStatus('👁 Lösung wird angezeigt.','hint');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('load',newGame);
+window.addEventListener('resize',()=>{if(solution.length) renderBoard();});
+</script>
+</body>
+</html>
