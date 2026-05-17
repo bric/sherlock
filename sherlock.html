@@ -857,14 +857,39 @@ function giveHint(){
     }
   }
 
-  // Fallback: kein einzelner Hinweis feuert direkt (Kettenlogik nötig)
+  // Fallback: minimale Regelkombination ermitteln und erklären
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
     if(cellAnswer(r,c)>=0) continue;
     for(let i=0;i<N;i++){
       if(i!==solution[r][c]&&mark[r][c][i]!==-1){
+        // Minimale Teilmenge der Regeln finden, die diesen Ausschluss erzwingen
+        let needed=[...gameClues];
+        for(let ci=needed.length-1;ci>=0;ci--){
+          const without=needed.filter((_,j)=>j!==ci);
+          const p=clonePoss(basePoss);
+          propagate(p,without,N);
+          if(!p[r][i].has(c)) needed=without;
+        }
+
         saveHistory();manual[r][c][i]=-1;
         recompute();renderBoard();
-        setStatus(`💡 ${CATS[r].items[i]} gehört nicht in Spalte ${c+1} (${CATS[r].name}) — folgt aus Kombination mehrerer Regeln`,'hint');
+
+        if(needed.length===0){
+          setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt direkt aus den vorgegebenen Feldern`,'hint');
+        } else {
+          const descs=needed.map(cl=>`„${clueMeta(cl).desc}"`);
+          let msg;
+          if(descs.length<=2){
+            msg=descs.join(' und ');
+          } else {
+            msg=descs.slice(0,-1).join(', ')+' und '+descs[descs.length-1];
+          }
+          setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt aus: ${msg}`,'hint');
+          needed.forEach(cl=>{
+            const idx=gameClues.indexOf(cl);
+            if(idx>=0) highlightClueCard(idx);
+          });
+        }
         return;
       }
     }
