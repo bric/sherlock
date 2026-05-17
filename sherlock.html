@@ -857,12 +857,11 @@ function giveHint(){
     }
   }
 
-  // Fallback: minimale Regelkombination ermitteln und erklären
+  // Fallback: nur Tipps mit maximal 2 Regeln
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
     if(cellAnswer(r,c)>=0) continue;
     for(let i=0;i<N;i++){
       if(i!==solution[r][c]&&mark[r][c][i]!==-1){
-        // Minimale Teilmenge der Regeln finden, die diesen Ausschluss erzwingen
         let needed=[...gameClues];
         for(let ci=needed.length-1;ci>=0;ci--){
           const without=needed.filter((_,j)=>j!==ci);
@@ -870,6 +869,7 @@ function giveHint(){
           propagate(p,without,N);
           if(!p[r][i].has(c)) needed=without;
         }
+        if(needed.length>2) continue;
 
         saveHistory();manual[r][c][i]=-1;
         recompute();renderBoard();
@@ -877,24 +877,15 @@ function giveHint(){
         if(needed.length===0){
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt direkt aus den vorgegebenen Feldern`,'hint');
         } else {
-          const descs=needed.map(cl=>`„${clueMeta(cl).desc}"`);
-          let msg;
-          if(descs.length<=2){
-            msg=descs.join(' und ');
-          } else {
-            msg=descs.slice(0,-1).join(', ')+' und '+descs[descs.length-1];
-          }
+          const msg=needed.map(cl=>`„${clueMeta(cl).desc}"`).join(' und ');
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt aus: ${msg}`,'hint');
-          needed.forEach(cl=>{
-            const idx=gameClues.indexOf(cl);
-            if(idx>=0) highlightClueCard(idx);
-          });
+          needed.forEach(cl=>{const idx=gameClues.indexOf(cl);if(idx>=0) highlightClueCard(idx);});
         }
         return;
       }
     }
   }
-  setStatus('💡 Alle Felder sind bereits korrekt markiert!','hint');
+  setStatus('💡 Kein einfacher Tipp verfügbar – der nächste Schritt erfordert komplexere Logik.','hint');
 }
 
 function highlightClueCard(idx){
