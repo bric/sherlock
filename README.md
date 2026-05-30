@@ -58,4 +58,4 @@ Das Spiel verwendet 6 Symbol-Kategorien: **Zahlen**, **Buchstaben**, **Tiere**, 
 
 ## Starten
 
-Einfach `sherlock.html` im Browser öffnen – kein Server oder Installation nötig.
+Einfach `index.html` im Browser öffnen – kein Server oder Installation nötig.
