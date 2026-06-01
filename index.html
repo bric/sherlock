@@ -839,31 +839,36 @@ function giveHint(){
     )
   );
 
-  // Jeden Hinweis einzeln anwenden und schauen ob er direkt etwas ausschließt
-  for(let ci=0;ci<gameClues.length;ci++){
+  // Bereits abgehakte Regeln in basePoss einrechnen – ihr Wissen gilt als bekannt
+  const usedClues=gameClues.filter((_,i)=>clueUsed[i]);
+  if(usedClues.length>0) propagate(basePoss,usedClues,N);
+  const openClues=gameClues.filter((_,i)=>!clueUsed[i]);
+
+  // Jede offene Regel einzeln anwenden und schauen ob sie direkt etwas ausschließt
+  for(let ci=0;ci<openClues.length;ci++){
     const cp=clonePoss(basePoss);
-    if(!applyClue(cp,gameClues[ci],N)) continue;
+    if(!applyClue(cp,openClues[ci],N)) continue;
     for(let r=0;r<N;r++) for(let i=0;i<N;i++){
       for(const c of basePoss[r][i]){
         if(!cp[r][i].has(c)&&mark[r][c][i]!==-1){
           saveHistory();manual[r][c][i]=-1;
           recompute();renderBoard();
-          const meta=clueMeta(gameClues[ci]);
+          const meta=clueMeta(openClues[ci]);
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — Regel: „${meta.desc}"`, 'hint');
-          highlightClueCard(ci);
+          highlightClueCard(gameClues.indexOf(openClues[ci]));
           return;
         }
       }
     }
   }
 
-  // Fallback: alle ableitbaren Ausschlüsse sammeln, kürzeste Hinweiskombination bevorzugen
+  // Fallback: alle ableitbaren Ausschlüsse sammeln, kürzeste Kombination offener Regeln bevorzugen
   const candidates=[];
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
     if(cellAnswer(r,c)>=0) continue;
     for(let i=0;i<N;i++){
       if(i!==solution[r][c]&&mark[r][c][i]!==-1){
-        let needed=[...gameClues];
+        let needed=[...openClues];
         for(let ci=needed.length-1;ci>=0;ci--){
           const without=needed.filter((_,j)=>j!==ci);
           const p=clonePoss(basePoss);
