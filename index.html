@@ -869,7 +869,7 @@ function giveHint(){
           propagate(p,without,N);
           if(!p[r][i].has(c)) needed=without;
         }
-        if(needed.length>2) continue;
+        if(needed.length>3) continue;
 
         saveHistory();manual[r][c][i]=-1;
         recompute();renderBoard();
@@ -877,7 +877,8 @@ function giveHint(){
         if(needed.length===0){
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt direkt aus den vorgegebenen Feldern`,'hint');
         } else {
-          const msg=needed.map(cl=>`„${clueMeta(cl).desc}"`).join(' und ');
+          const parts=needed.map(cl=>`„${clueMeta(cl).desc}"`);
+          const msg=parts.length>1?parts.slice(0,-1).join(', ')+' und '+parts.at(-1):parts[0];
           setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt aus: ${msg}`,'hint');
           needed.forEach(cl=>{const idx=gameClues.indexOf(cl);if(idx>=0) highlightClueCard(idx);});
         }
