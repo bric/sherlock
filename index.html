@@ -404,6 +404,12 @@ function propagate(poss,clues,n){
 
 function isSolvedPoss(poss){return poss.every(r=>r.every(s=>s.size===1));}
 
+function isPropSolvable(clues,basePoss,n){
+  const poss=clonePoss(basePoss);
+  if(!propagate(poss,clues,n)) return false;
+  return isSolvedPoss(poss);
+}
+
 function countSols(clues,n,limit=2,basePoss=null){
   function bt(poss,cnt){
     if(cnt>=limit) return cnt;
@@ -460,19 +466,19 @@ function buildPuzzle(n){
     if(vi<vertPool.length)  ordered.push(vertPool[vi++]);
   }
 
+  // Regeln hinzufügen bis reine Propagation das Rätsel löst
   let selected=[];
-  if(countSols(selected,n,2,basePoss)!==1){
-    for(const clue of ordered){
-      selected.push(clue);
-      if(countSols(selected,n,2,basePoss)===1) break;
-    }
+  for(const clue of ordered){
+    selected.push(clue);
+    if(isPropSolvable(selected,basePoss,n)) break;
   }
+  if(!isPropSolvable(selected,basePoss,n)) return null; // Retry nötig
 
-  // Minimieren: redundante Hinweise entfernen
+  // Minimieren: redundante Regeln entfernen
   let i=0;
   while(i<selected.length){
     const without=selected.filter((_,j)=>j!==i);
-    if(countSols(without,n,2,basePoss)===1) selected=without;
+    if(isPropSolvable(without,basePoss,n)) selected=without;
     else i++;
   }
 
@@ -815,7 +821,9 @@ function newGame(){
   gameWon=false;
   setStatus('⏳ Generiere einzigartiges Rätsel …','hint');
   setTimeout(()=>{
-    const p=buildPuzzle(N);
+    let p=null;
+    for(let attempt=0;attempt<200&&!p;attempt++) p=buildPuzzle(N);
+    if(!p){setStatus('Kein Rätsel gefunden – bitte erneut versuchen.','error');return;}
     solution=p.solution; gameClues=p.clues;
     preFilled=p.preFilled;
     preFilledSet=new Set(preFilled.map(({r,c})=>`${r},${c}`));
