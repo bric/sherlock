@@ -857,7 +857,8 @@ function giveHint(){
     }
   }
 
-  // Fallback: nur Tipps mit maximal 2 Regeln
+  // Fallback: alle ableitbaren Ausschlüsse sammeln, kürzeste Hinweiskombination bevorzugen
+  const candidates=[];
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
     if(cellAnswer(r,c)>=0) continue;
     for(let i=0;i<N;i++){
@@ -869,24 +870,26 @@ function giveHint(){
           propagate(p,without,N);
           if(!p[r][i].has(c)) needed=without;
         }
-        if(needed.length>3) continue;
-
-        saveHistory();manual[r][c][i]=-1;
-        recompute();renderBoard();
-
-        if(needed.length===0){
-          setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt direkt aus den vorgegebenen Feldern`,'hint');
-        } else {
-          const parts=needed.map(cl=>`„${clueMeta(cl).desc}"`);
-          const msg=parts.length>1?parts.slice(0,-1).join(', ')+' und '+parts.at(-1):parts[0];
-          setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt aus: ${msg}`,'hint');
-          needed.forEach(cl=>{const idx=gameClues.indexOf(cl);if(idx>=0) highlightClueCard(idx);});
-        }
-        return;
+        candidates.push({r,c,i,needed});
       }
     }
   }
-  setStatus('💡 Kein einfacher Tipp verfügbar – der nächste Schritt erfordert komplexere Logik.','hint');
+  if(candidates.length>0){
+    candidates.sort((a,b)=>a.needed.length-b.needed.length);
+    const {r,c,i,needed}=candidates[0];
+    saveHistory();manual[r][c][i]=-1;
+    recompute();renderBoard();
+    if(needed.length===0){
+      setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt direkt aus den vorgegebenen Feldern`,'hint');
+    } else {
+      const parts=needed.map(cl=>`„${clueMeta(cl).desc}"`);
+      const msg=parts.length>1?parts.slice(0,-1).join(', ')+' und '+parts.at(-1):parts[0];
+      setStatus(`💡 ${CATS[r].items[i]} nicht in Spalte ${c+1} — folgt aus: ${msg}`,'hint');
+      needed.forEach(cl=>{const idx=gameClues.indexOf(cl);if(idx>=0) highlightClueCard(idx);});
+    }
+    return;
+  }
+  setStatus('💡 Kein Tipp ableitbar – versuche einen anderen Ansatz.','hint');
 }
 
 function highlightClueCard(idx){
