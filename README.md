@@ -1,5 +1,7 @@
 # 🔍 Sherlock – Logikrätsel
 
+🌐 **[Jetzt spielen auf GitHub Pages](https://bric.github.io/sherlock/)**
+
 Ein browserbasiertes Logikrätsel, inspiriert vom klassischen DOS-Spiel **Sherlock – The Game of Logic** (Everett Kaser Software, 1991).
 
 ## Spielprinzip
